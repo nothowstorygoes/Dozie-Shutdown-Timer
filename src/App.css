@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* Fix definitivo per rimuovere le freccette degli input number */
+@layer base {
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+html, body, #root {
+  height: 100%;
+  background-color: transparent !important;
+  width: 100%;
+  overflow: hidden; /* Blocca lo scroll */
+  user-select: none; /* Impedisce di selezionare il testo come in un sito */
+  touch-action: none; /* Impedisce gesture di zoom/scroll con le dita */
+}
+
+/* Fix per input: permetti la selezione solo lì */
+input {
+  user-select: auto;
+}
+
+#root {
+  background-color: #1c1c1c; /* Sposta qui il colore */
+  height: 100vh;
+}
+
+/* Rimuovi le freccette (già visto prima) */
+@layer base {
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+:focus {
+  outline: none;}
+
+  /* Colore di sfondo dei pulsanti al passaggio del mouse */
+button.decorum-tb-btn{
+  color: white;
+}
+/* Assicurati che il corpo dell'app lasci spazio per la barra (altezza default ~30px) */
+.app-container {
+  padding-top: 32px; 
+}
