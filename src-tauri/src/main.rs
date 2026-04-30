@@ -4,15 +4,15 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
-    menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent},
-    Manager, Runtime,
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton},
+    Manager, Runtime, Emitter
 };
-// Importiamo il plugin decorum
 use tauri_plugin_decorum::WebviewWindowExt;
 
 struct AppState {
     cancel_flag: Arc<Mutex<bool>>,
+    remaining_time_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
 }
 
 #[tauri::command]
@@ -23,6 +23,8 @@ async fn schedule_action<R: Runtime>(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
     let flag = state.cancel_flag.clone();
+    let time_item_ref = state.remaining_time_item.clone();
+    
     {
         let mut f = flag.lock().unwrap();
         *f = false;
@@ -33,9 +35,32 @@ async fn schedule_action<R: Runtime>(
     }
 
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(seconds)).await;
-        let cancelled = { *flag.lock().unwrap() };
+        let mut remaining = seconds;
 
+        while remaining > 0 {
+            if *flag.lock().unwrap() {
+                update_tray_text(&time_item_ref, "No active timer".to_string());
+                let _ = app.emit("timer-tick", 0); // Notifica reset a React
+                return;
+            }
+
+            // --- SINCRONIZZAZIONE ---
+            // Invia il tempo rimanente a React ogni secondo
+            let _ = app.emit("timer-tick", remaining);
+
+            let mins = remaining / 60;
+            let secs = remaining % 60;
+            let label = format!("Time remaining: {:02}:{:02}", mins, secs);
+            update_tray_text(&time_item_ref, label);
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            remaining -= 1;
+        }
+
+        update_tray_text(&time_item_ref, "Executing action...".to_string());
+        let _ = app.emit("timer-tick", 0);
+        
+        let cancelled = { *flag.lock().unwrap() };
         if !cancelled {
             match action.as_str() {
                 "shutdown" => { Command::new("shutdown").args(["/s", "/t", "0"]).spawn().ok(); }
@@ -45,7 +70,14 @@ async fn schedule_action<R: Runtime>(
             }
         }
     });
+
     Ok(())
+}
+
+fn update_tray_text(item_lock: &Arc<Mutex<Option<MenuItem<tauri::Wry>>>>, text: String) {
+    if let Some(item) = item_lock.lock().unwrap().as_ref() {
+        let _ = item.set_text(text);
+    }
 }
 
 #[tauri::command]
@@ -62,7 +94,6 @@ fn get_accent_color() -> String {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let dwm_path = "Software\\Microsoft\\Windows\\DWM";
     if let Ok(dwm_key) = hkcu.open_subkey(dwm_path) {
-        // Usiamo AccentColor che è più affidabile per i toggle UI
         let accent: u32 = dwm_key.get_value("AccentColorMenu").unwrap_or(0xff3b82f6);
         let r = (accent & 0xFF) as u8;
         let g = ((accent >> 8) & 0xFF) as u8;
@@ -74,48 +105,51 @@ fn get_accent_color() -> String {
 
 fn main() {
     tauri::Builder::default()
-        // Inizializziamo il plugin decorum
         .plugin(tauri_plugin_decorum::init())
         .manage(AppState {
             cancel_flag: Arc::new(Mutex::new(false)),
+            remaining_time_item: Arc::new(Mutex::new(None)),
         })
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
-
-            // --- DECORUM & OVERLAY ---
-            // Questo crea la barra del titolo personalizzata che si fonde con lo sfondo
-            // e inietta i controlli (X, _, ecc.) direttamente nel frame
             window.create_overlay_titlebar().unwrap();
-
-            // --- FIX RESIZE ---
-            // Forza il blocco del ridimensionamento via codice. 
-            // Decorum rispetta questo comando eliminando i bordi di resize di Windows.
             window.set_resizable(false).unwrap();
 
-            // Configurazione Tray (Menu)
-            let quit_i = MenuItem::with_id(app, "quit", "Esci", true, None::<&str>)?;
-            let show_i = MenuItem::with_id(app, "show", "Mostra App", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+            let time_i = MenuItem::with_id(app, "time", "No active timer", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Open App", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Cancel and Quit", true, None::<&str>)?;
+            
+            let menu = Menu::with_items(app, &[
+                &time_i, 
+                &show_i, 
+                &PredefinedMenuItem::separator(app)?, 
+                &quit_i
+            ])?;
+
+            let state = app.state::<AppState>();
+            *state.remaining_time_item.lock().unwrap() = Some(time_i);
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "quit" => { app.exit(0); }
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            window.show().unwrap();
-                            window.set_focus().unwrap();
-                        }
-                    }
-                    _ => {}
-                })
+                .show_menu_on_left_click(false) // <--- DISABILITA MENU SU CLICK SINISTRO
+                .on_menu_event(move |app, event| match event.id.as_ref() {
+    "quit" => { app.exit(0); }
+    "show" | "time" => { // <--- Aggiungi "time" qui
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+    _ => {}
+})
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
+                    // --- GESTIONE CLICK SINISTRO ---
+                    if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
-                            window.show().unwrap();
-                            window.set_focus().unwrap();
+                            let _ = window.show();
+                            let _ = window.set_focus();
                         }
                     }
                 })

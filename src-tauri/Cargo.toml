@@ -26,4 +26,5 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 winreg = "0.11"
 tauri-plugin-decorum = "1.1.1"
+msix = "0.4.0"
 

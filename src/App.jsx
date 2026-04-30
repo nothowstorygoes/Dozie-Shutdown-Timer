@@ -97,15 +97,12 @@ export default function App() {
       data-tauri-drag-region 
       className="h-10 w-full absolute top-0 left-0 z-10 cursor-default" 
     />
-      <div className="w-full max-w-sm px-8 flex-grow flex flex-col justify-center">
-        {!running && (
-          <h1 className="text-2xl font-semibold mb-10">Sleep Timer</h1>
-        )}
+      <div className="w-full max-w-sm px-8 flex-grow flex flex-col justify-center mt-12">
 
         {/* Sezione Azioni */}
         {!running && (
   <div className="mb-6">
-    <div className="grid grid-cols-3 gap-2 mb-8 animate-in fade-in duration-500">
+    <div className="grid grid-cols-3 gap-2 mb-4 animate-in fade-in duration-500">
       {ACTIONS.map((a) => (
         <button
           key={a.id}
@@ -163,14 +160,14 @@ export default function App() {
               style={{ backgroundColor: accentColor }}
               className="w-full py-4 rounded-xl font-bold text-black hover:brightness-110 active:scale-95 transition-all shadow-lg"
             >
-              AVVIA TIMER
+              START TIMER
             </button>
           ) : (
             <button
               onClick={handleCancel}
               className="w-full py-4 rounded-xl border border-zinc-800 text-zinc-500 hover:text-white hover:border-zinc-600 active:scale-95 transition-all"
             >
-              ANNULLA
+              CANCEL
             </button>
           )}
         </div>

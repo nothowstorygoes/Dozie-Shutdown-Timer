@@ -1,28 +1,25 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Sleep Timer",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "identifier": "nshg.sleeptimer",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
-    
   },
   "app": {
-          "withGlobalTauri": true,
-
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "Sleep Timer",
         "width": 350,
-        "height": 450,
+        "height": 350,
         "decorations": true,
         "shadow": true,
         "titleBarStyle": "Overlay"
-        
       }
     ],
     "security": {
@@ -31,13 +28,21 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": ["msi", "nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "language": "it-IT"
+      },
+      "nsis": {
+        "languages": ["Italian"]
+      }
+    }
   }
 }
