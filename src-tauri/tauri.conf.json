@@ -28,7 +28,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis"],
+    "targets": [
+      "msi",
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -41,7 +44,9 @@
         "language": "it-IT"
       },
       "nsis": {
-        "languages": ["Italian"]
+        "languages": [
+          "Italian"
+        ]
       }
     }
   }
