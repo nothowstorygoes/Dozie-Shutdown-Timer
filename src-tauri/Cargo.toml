@@ -1,9 +1,9 @@
 [package]
-name = "sleep-timer"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-edition = "2021"
+name = "Dozie-Shutdown-Timer"
+version = "1.1.1"
+description = "Dozie Shutdown Timer is a simple application that allows you to schedule your computer to shut down after a specified amount of time. It provides an easy-to-use interface for setting timers and managing shutdown schedules."
+authors = ["nothowstorygoes"]
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -28,3 +28,16 @@ winreg = "0.11"
 tauri-plugin-decorum = "1.1.1"
 msix = "0.4.0"
 
+[package.metadata.msix]
+# Il nome visualizzato nello Store
+display_name = "Dozie Shutdown Timer" 
+# Nome univoco (deve coincidere con quello del Partner Center)
+identity_name = "nothowstorygoes.DozieShutdownTimer"
+publisher = "CN=671433DE-39F6-4732-8DE0-426A51A7690F"
+publisher_display_name = "nothowstorygoes"
+logo = "icons/StoreLogo.png"
+square44x44_logo = "icons/Square44x44Logo.png"
+square150x150_logo = "icons/Square150x150Logo.png"
+# Capability necessaria (quella di cui parlavamo prima)
+capabilities = ["runFullTrust"]
+install_location = "app"

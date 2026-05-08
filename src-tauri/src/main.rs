@@ -64,7 +64,7 @@ async fn schedule_action<R: Runtime>(
         if !cancelled {
             match action.as_str() {
                 "shutdown" => { Command::new("shutdown").args(["/s", "/t", "0"]).spawn().ok(); }
-                "sleep" => { Command::new("rundll32").args(["powrprof.dll,SetSuspendState", "0,1,0"]).spawn().ok(); }
+                "sleep" => { Command::new("powershell").args(["-Command", "[System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"]).spawn().ok(); }     
                 "hibernate" => { Command::new("shutdown").args(["/h"]).spawn().ok(); }
                 _ => {}
             }
