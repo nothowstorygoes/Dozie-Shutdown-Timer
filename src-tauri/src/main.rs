@@ -9,7 +9,6 @@ use tauri::{
     Manager, Runtime, Emitter
 };
 use tauri_plugin_decorum::WebviewWindowExt;
-use std::os::windows::process::CommandExt;
 
 unsafe extern "system" {
     fn SendMessageW(hwnd: isize, msg: u32, wparam: usize, lparam: isize) -> isize;
@@ -111,22 +110,6 @@ fn get_accent_color() -> String {
     }
     "#3b82f6".to_string()
 }
-
-fn log(msg: &str) {
-    use std::fs::OpenOptions;
-    use std::io::Write;
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("C:\\Users\\Public\\sleep_debug.log")
-        .unwrap();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    writeln!(file, "[{}] {}", now, msg).unwrap();
-}
-
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_decorum::init())
