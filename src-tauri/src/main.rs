@@ -9,6 +9,11 @@ use tauri::{
     Manager, Runtime, Emitter
 };
 use tauri_plugin_decorum::WebviewWindowExt;
+use std::os::windows::process::CommandExt;
+
+unsafe extern "system" {
+    fn SendMessageW(hwnd: isize, msg: u32, wparam: usize, lparam: isize) -> isize;
+}
 
 struct AppState {
     cancel_flag: Arc<Mutex<bool>>,
@@ -40,12 +45,10 @@ async fn schedule_action<R: Runtime>(
         while remaining > 0 {
             if *flag.lock().unwrap() {
                 update_tray_text(&time_item_ref, "No active timer".to_string());
-                let _ = app.emit("timer-tick", 0); // Notifica reset a React
+                let _ = app.emit("timer-tick", 0);
                 return;
             }
 
-            // --- SINCRONIZZAZIONE ---
-            // Invia il tempo rimanente a React ogni secondo
             let _ = app.emit("timer-tick", remaining);
 
             let mins = remaining / 60;
@@ -64,7 +67,13 @@ async fn schedule_action<R: Runtime>(
         if !cancelled {
             match action.as_str() {
                 "shutdown" => { Command::new("shutdown").args(["/s", "/t", "0"]).spawn().ok(); }
-                "sleep" => { Command::new("powershell").args(["-Command", "[System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"]).spawn().ok(); }     
+             "sleep" => {
+    unsafe {
+        // HWND_BROADCAST = 0xFFFF, WM_SYSCOMMAND = 0x0112
+        // SC_MONITORPOWER = 0xF170, 2 = display off
+        SendMessageW(0xFFFF, 0x0112, 0xF170, 2);
+    }
+}
                 "hibernate" => { Command::new("shutdown").args(["/h"]).spawn().ok(); }
                 _ => {}
             }
@@ -103,6 +112,21 @@ fn get_accent_color() -> String {
     "#3b82f6".to_string()
 }
 
+fn log(msg: &str) {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("C:\\Users\\Public\\sleep_debug.log")
+        .unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    writeln!(file, "[{}] {}", now, msg).unwrap();
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_decorum::init())
@@ -132,19 +156,18 @@ fn main() {
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .show_menu_on_left_click(false) // <--- DISABILITA MENU SU CLICK SINISTRO
+                .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
-    "quit" => { app.exit(0); }
-    "show" | "time" => { // <--- Aggiungi "time" qui
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.show();
-            let _ = window.set_focus();
-        }
-    }
-    _ => {}
-})
+                    "quit" => { app.exit(0); }
+                    "show" | "time" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    _ => {}
+                })
                 .on_tray_icon_event(|tray, event| {
-                    // --- GESTIONE CLICK SINISTRO ---
                     if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
