@@ -1,3 +1,11 @@
+## [1.1.3](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/compare/v1.1.2...v1.1.3) (2026-05-09)
+
+
+### Bug Fixes
+
+* changed command for sleep mode ([cc1a7aa](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/cc1a7aa61e1983bffe6425784f47d9f883e77fb7))
+* changed command for sleep mode ([1f0140f](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/1f0140f309649a5e39dd00fad8c8e3ce994f10dc))
+
 ## [1.1.2](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/compare/v1.1.1...v1.1.2) (2026-05-08)
 
 
