@@ -3,6 +3,16 @@
 
 ### Bug Fixes
 
+* better sleep mode and stop media ([63c6acb](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/63c6acbdb3861b290fd1d5a32bdaf7e26f78931e))
+* better sleep mode and stop media ([b4b35ea](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/b4b35ea8c5e4b437e4fb7b3aec43f9a3d3fa3583))
+* changed command for sleep mode ([cc1a7aa](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/cc1a7aa61e1983bffe6425784f47d9f883e77fb7))
+* changed command for sleep mode ([1f0140f](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/1f0140f309649a5e39dd00fad8c8e3ce994f10dc))
+
+## [1.1.3](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/compare/v1.1.2...v1.1.3) (2026-05-15)
+
+
+### Bug Fixes
+
 * better sleep mode and stop media ([b4b35ea](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/b4b35ea8c5e4b437e4fb7b3aec43f9a3d3fa3583))
 * changed command for sleep mode ([cc1a7aa](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/cc1a7aa61e1983bffe6425784f47d9f883e77fb7))
 * changed command for sleep mode ([1f0140f](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/1f0140f309649a5e39dd00fad8c8e3ce994f10dc))
