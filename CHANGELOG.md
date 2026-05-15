@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/compare/v1.1.3...v1.1.4) (2026-05-15)
+
+
+### Bug Fixes
+
+* force 1.1.4 release ([d35388f](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/commit/d35388f39537916d02517a1fc9b8fb2f758eb8af))
+
 ## [1.1.3](https://github.com/nothowstorygoes/Dozie-Shutdown-Timer/compare/v1.1.2...v1.1.3) (2026-05-15)
 
 
