@@ -4,14 +4,69 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
+    Emitter, Manager, Runtime,
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton},
-    Manager, Runtime, Emitter
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_decorum::WebviewWindowExt;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
+#[link(name = "user32")]
 unsafe extern "system" {
     fn SendMessageW(hwnd: isize, msg: u32, wparam: usize, lparam: isize) -> isize;
+    fn keybd_event(bvk: u8, bscan: u8, dwflags: u32, dwextrainfo: usize);
+}
+
+#[link(name = "powrprof")]
+unsafe extern "system" {
+    fn SetSuspendState(bhibernate: u8, bforce: u8, bwakeupeventsdisabled: u8) -> u8;
+}
+
+#[link(name = "advapi32")]
+unsafe extern "system" {
+    fn OpenProcessToken(processhandle: isize, desiredaccess: u32, tokenhandle: *mut isize) -> i32;
+    fn LookupPrivilegeValueW(lpsystemname: *const u16, lpname: *const u16, lpluid: *mut [u32; 2]) -> i32;
+    fn AdjustTokenPrivileges(tokenhandle: isize, disableallprivileges: i32, newstate: *const u8, bufferlength: u32, previousstate: *mut u8, returnlength: *mut u32) -> i32;
+    fn CloseHandle(hobject: isize) -> i32;
+    fn GetCurrentProcess() -> isize;
+}
+
+#[cfg(windows)]
+unsafe fn enable_shutdown_privilege() {
+    const TOKEN_ADJUST_PRIVILEGES: u32 = 0x0020;
+    const TOKEN_QUERY: u32 = 0x0008;
+    const SE_PRIVILEGE_ENABLED: u32 = 0x00000002;
+
+    let mut token: isize = 0;
+    if OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &mut token) == 0 {
+        return;
+    }
+
+    let name: Vec<u16> = "SeShutdownPrivilege\0".encode_utf16().collect();
+    let mut luid = [0u32; 2];
+    if LookupPrivilegeValueW(std::ptr::null(), name.as_ptr(), &mut luid) == 0 {
+        CloseHandle(token);
+        return;
+    }
+
+    let tp: [u32; 4] = [1, luid[0], luid[1], SE_PRIVILEGE_ENABLED];
+    AdjustTokenPrivileges(
+        token, 0,
+        tp.as_ptr() as *const u8,
+        std::mem::size_of_val(&tp) as u32,
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+    );
+    CloseHandle(token);
+}
+
+#[cfg(windows)]
+unsafe fn media_stop() {
+    const VK_MEDIA_STOP: u8 = 0xB2;
+    const KEYEVENTF_KEYUP: u32 = 0x0002;
+    keybd_event(VK_MEDIA_STOP, 0, 0, 0);
+    keybd_event(VK_MEDIA_STOP, 0, KEYEVENTF_KEYUP, 0);
 }
 
 struct AppState {
@@ -28,7 +83,7 @@ async fn schedule_action<R: Runtime>(
 ) -> Result<(), String> {
     let flag = state.cancel_flag.clone();
     let time_item_ref = state.remaining_time_item.clone();
-    
+
     {
         let mut f = flag.lock().unwrap();
         *f = false;
@@ -52,8 +107,7 @@ async fn schedule_action<R: Runtime>(
 
             let mins = remaining / 60;
             let secs = remaining % 60;
-            let label = format!("Time remaining: {:02}:{:02}", mins, secs);
-            update_tray_text(&time_item_ref, label);
+            update_tray_text(&time_item_ref, format!("Time remaining: {:02}:{:02}", mins, secs));
 
             tokio::time::sleep(Duration::from_secs(1)).await;
             remaining -= 1;
@@ -61,19 +115,51 @@ async fn schedule_action<R: Runtime>(
 
         update_tray_text(&time_item_ref, "Executing action...".to_string());
         let _ = app.emit("timer-tick", 0);
-        
+
         let cancelled = { *flag.lock().unwrap() };
         if !cancelled {
             match action.as_str() {
-                "shutdown" => { Command::new("shutdown").args(["/s", "/t", "0"]).spawn().ok(); }
-             "sleep" => {
-    unsafe {
-        // HWND_BROADCAST = 0xFFFF, WM_SYSCOMMAND = 0x0112
-        // SC_MONITORPOWER = 0xF170, 2 = display off
-        SendMessageW(0xFFFF, 0x0112, 0xF170, 2);
-    }
-}
-                "hibernate" => { Command::new("shutdown").args(["/h"]).spawn().ok(); }
+                "shutdown" => {
+                    Command::new("shutdown").args(["/s", "/t", "0"]).spawn().ok();
+                    app.exit(0);
+                }
+                "sleep" => {
+                    #[cfg(windows)]
+                    unsafe {
+                        enable_shutdown_privilege();
+                        media_stop();
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        // Tentativo 1: SetSuspendState (S3 o sistemi con hibernate abilitato)
+                        let result = SetSuspendState(0, 0, 0);
+                        if result == 0 {
+                            // Tentativo 2: SC_MONITORPOWER (S0 Modern Standby — Win11)
+                            SendMessageW(0xFFFF, 0x0112, 0xF170, 2);
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    app.exit(0);
+                }
+                "hibernate" => {
+                    #[cfg(windows)]
+                    unsafe {
+                        enable_shutdown_privilege();
+                        media_stop();
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        // Tentativo 1: SetSuspendState hibernate (sistemi con hibernate abilitato)
+                        let result = SetSuspendState(1, 0, 0);
+                        if result == 0 {
+                            // Fallback: shutdown /h
+                            Command::new("shutdown")
+                                .args(["/h"])
+                                .creation_flags(0x08000000)
+                                .spawn()
+                                .ok();
+                            tokio::time::sleep(Duration::from_millis(1000)).await;
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    app.exit(0);
+                }
                 _ => {}
             }
         }
@@ -97,11 +183,10 @@ fn cancel_action(state: tauri::State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 fn get_accent_color() -> String {
-    use winreg::enums::*;
     use winreg::RegKey;
+    use winreg::enums::*;
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let dwm_path = "Software\\Microsoft\\Windows\\DWM";
-    if let Ok(dwm_key) = hkcu.open_subkey(dwm_path) {
+    if let Ok(dwm_key) = hkcu.open_subkey("Software\\Microsoft\\Windows\\DWM") {
         let accent: u32 = dwm_key.get_value("AccentColorMenu").unwrap_or(0xff3b82f6);
         let r = (accent & 0xFF) as u8;
         let g = ((accent >> 8) & 0xFF) as u8;
@@ -110,6 +195,7 @@ fn get_accent_color() -> String {
     }
     "#3b82f6".to_string()
 }
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_decorum::init())
@@ -125,12 +211,12 @@ fn main() {
             let time_i = MenuItem::with_id(app, "time", "No active timer", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Open App", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Cancel and Quit", true, None::<&str>)?;
-            
+
             let menu = Menu::with_items(app, &[
-                &time_i, 
-                &show_i, 
-                &PredefinedMenuItem::separator(app)?, 
-                &quit_i
+                &time_i,
+                &show_i,
+                &PredefinedMenuItem::separator(app)?,
+                &quit_i,
             ])?;
 
             let state = app.state::<AppState>();
@@ -164,8 +250,8 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            schedule_action, 
-            cancel_action, 
+            schedule_action,
+            cancel_action,
             get_accent_color
         ])
         .run(tauri::generate_context!())
